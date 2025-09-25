@@ -10,20 +10,19 @@
       background: linear-gradient(120deg, #e3f0ff 0%, #fafafa 100%);
       font-family: 'Montserrat', 'Roboto', Arial, sans-serif;
       min-height: 100vh;
-      padding: 0;
       margin: 0;
       display: flex;
       flex-direction: column;
       align-items: center;
     }
     .app-container {
-      max-width: 600px;
+      max-width: 650px;
       width: 100%;
       margin: 42px 0;
       background: #fff;
       border-radius: 16px;
       box-shadow: 0 16px 40px rgba(50,130,250,0.08);
-      padding: 36px 26px 26px 26px;
+      padding: 36px 26px;
       display: flex;
       flex-direction: column;
       gap: 28px;
@@ -45,7 +44,7 @@
       align-items: center;
       justify-content: center;
       background: #f4f7fe;
-      transition: border-color 0.25s;
+      transition: border-color 0.25s, background 0.25s;
       padding: 28px 14px;
       text-align: center;
       color: #1553a6;
@@ -209,16 +208,15 @@
       display: flex;
       gap: 7px;
       margin-bottom: 0;
+      flex-wrap: wrap;
     }
     .comment-form input[type=text] {
       border-radius: 5px;
       border: 1.5px solid #bbe1ff;
       padding: 5.5px;
-      width: 29%;
+      width: 25%;
+      min-width: 100px;
       font-size: 0.95rem;
-    }
-    .comment-form input[type=text]:focus {
-      border-color: #347afe;
     }
     .comment-form textarea {
       border-radius: 5px;
@@ -226,8 +224,9 @@
       padding: 5.5px;
       font-size: 0.97rem;
       resize: vertical;
-      width: 50%;
+      width: 55%;
       min-height: 32px;
+      min-width: 160px;
     }
     .comment-form button {
       background: #00cf81;
@@ -257,6 +256,13 @@
       .file-meta {
         max-width: 86vw;
       }
+      .comment-form {
+        flex-direction: column;
+      }
+      .comment-form input[type=text],
+      .comment-form textarea {
+        width: 100%;
+      }
     }
   </style>
 </head>
@@ -265,7 +271,7 @@
     <h1>ShareBox</h1>
     <div class="drag-drop-card" id="dropArea">
       <span>Drag and drop a file, or <label for="fileInput" style="color:#347afe;text-decoration:underline;cursor:pointer;">browse</label></span>
-      <input type="file" id="fileInput" accept=".pdf,.epu,.mp3,.jpg" />
+      <input type="file" id="fileInput" accept=".pdf,.epub,.mp3,.jpg" />
       <input type="text" class="uploader-input" id="uploaderName" placeholder="Your name for credit (required)" />
       <button class="upload-btn" id="uploadBtn" disabled>Upload File</button>
       <div class="progress-wrap">
@@ -279,156 +285,188 @@
     </div>
   </div>
   <script>
-  const BACKEND_URL = "https://sharelit-1.onrender.com";
+    const BACKEND_URL = "https://sharelit-1.onrender.com";
 
-// Fetch and render file list
-function fetchFiles() {
-  fetch(`${BACKEND_URL}/files`)
-    .then(res => res.json())
-    .then(files => renderFiles(files))
-    .catch(() => {
-      document.getElementById('fileList').innerHTML = '<div style="color:#ff4848;padding:16px;">Failed to load files.</div>';
-    });
-}
+    // Selectors
+    const uploaderName = document.getElementById('uploaderName');
+    const fileInput = document.getElementById('fileInput');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const errorMsg = document.getElementById('errorMsg');
+    const progressBar = document.getElementById('progressBar');
+    const dropArea = document.getElementById('dropArea');
 
-function renderFiles(list) {
-  const fileList = document.getElementById('fileList');
-  fileList.innerHTML = '';
-  list.forEach(file => {
-    const card = document.createElement('div');
-    card.className = 'file-card';
+    // Fetch and render file list
+    async function fetchFiles() {
+      try {
+        const res = await fetch(`${BACKEND_URL}/files`);
+        const files = await res.json();
+        renderFiles(files);
+      } catch (e) {
+        document.getElementById('fileList').innerHTML = '<div style="color:#ff4848;padding:16px;">Failed to load files. Please refresh.</div>';
+      }
+    }
 
-    // Meta/header
-    const header = document.createElement('div');
-    header.className = 'file-header';
-    const meta = document.createElement('div');
-    meta.className = 'file-meta';
-    meta.innerHTML = `<span class="file-name">${file.originalname}</span>
-      <span class="file-extra"><span class="file-uploader">${file.uploader}</span></span>
-      <span class="file-date">${new Date(file.uploadDate).toLocaleDateString()}</span>`;
+    function renderFiles(list) {
+      const fileList = document.getElementById('fileList');
+      fileList.innerHTML = '';
+      list.forEach(file => {
+        const card = document.createElement('div');
+        card.className = 'file-card';
 
-    const actions = document.createElement('div');
-    actions.className = 'file-actions';
-    actions.innerHTML = `<button class="download-btn">Download</button>
-      <span class="download-count">${file.downloads || 0} Downloads</span>`;
-    actions.querySelector('.download-btn').onclick = () => {
-      window.open(`${BACKEND_URL}/download/${file.id}`, '_blank');
-    };
+        // Header/meta
+        const header = document.createElement('div');
+        header.className = 'file-header';
 
-    header.append(meta, actions);
+        const meta = document.createElement('div');
+        meta.className = 'file-meta';
+        meta.innerHTML = `
+          <span class="file-name">${file.originalname}</span>
+          <span class="file-extra"><span class="file-uploader">${file.uploader}</span></span>
+          <span class="file-date">${new Date(file.uploadDate).toLocaleDateString()}</span>
+        `;
 
-    // Comments
-    const comments = document.createElement('div');
-    comments.className = 'comments-section';
-    const commentList = document.createElement('ul');
-    commentList.className = 'comment-list';
-    (file.comments||[]).forEach(c => {
-      const item = document.createElement('li');
-      item.className = 'comment-item';
-      item.innerHTML = `<span class="comment-user">${c.name}</span>${c.text}`;
-      commentList.appendChild(item);
-    });
+        const actions = document.createElement('div');
+        actions.className = 'file-actions';
+        actions.innerHTML = `
+          <button class="download-btn">Download</button>
+          <span class="download-count">${file.downloads || 0} Downloads</span>
+        `;
+        actions.querySelector('.download-btn').onclick = () => {
+          window.open(`${BACKEND_URL}/download/${file.id}`, '_blank');
+        };
 
-    // Add new comment form
-    const commentForm = document.createElement('form');
-    commentForm.className = 'comment-form';
-    commentForm.innerHTML = `
-      <input type="text" placeholder="Your name" required />
-      <textarea placeholder="Add comment" required></textarea>
-      <button type="submit">Comment</button>
-    `;
-    commentForm.onsubmit = function(e) {
+        header.append(meta, actions);
+
+        // Comments
+        const comments = document.createElement('div');
+        comments.className = 'comments-section';
+        const commentList = document.createElement('ul');
+        commentList.className = 'comment-list';
+        (file.comments || []).forEach(c => {
+          const item = document.createElement('li');
+          item.className = 'comment-item';
+          item.innerHTML = `<span class="comment-user">${c.name}</span>${c.text}`;
+          commentList.appendChild(item);
+        });
+
+        // New comment form
+        const commentForm = document.createElement('form');
+        commentForm.className = 'comment-form';
+        commentForm.innerHTML = `
+          <input type="text" placeholder="Your name" required />
+          <textarea placeholder="Add comment" required></textarea>
+          <button type="submit">Comment</button>
+        `;
+        commentForm.onsubmit = async function (e) {
+          e.preventDefault();
+          const name = commentForm.querySelector('input').value.trim();
+          const text = commentForm.querySelector('textarea').value.trim();
+          if (!name || !text) return;
+          try {
+            await fetch(`${BACKEND_URL}/comment/${file.id}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name, text })
+            });
+            fetchFiles();
+          } catch {
+            alert("Failed to post comment. Try again.");
+          }
+        };
+
+        comments.append(commentList, commentForm);
+        card.append(header, comments);
+        fileList.appendChild(card);
+      });
+    }
+
+    // Drag & drop highlight
+    dropArea.addEventListener('dragover', e => {
       e.preventDefault();
-      const name = commentForm.querySelector('input').value.trim();
-      const text = commentForm.querySelector('textarea').value.trim();
-      if (!name || !text) return;
-      fetch(`${BACKEND_URL}/comment/${file.id}`, {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({name, text})
-      }).then(r=>r.json()).then(()=>fetchFiles());
-    };
+      dropArea.classList.add('dragover');
+    });
+    dropArea.addEventListener('dragleave', () => {
+      dropArea.classList.remove('dragover');
+    });
+    dropArea.addEventListener('drop', e => {
+      e.preventDefault();
+      dropArea.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) {
+        fileInput.files = e.dataTransfer.files;
+        validateForm();
+      }
+    });
 
-    comments.append(commentList, commentForm);
-    card.append(header, comments);
-    fileList.appendChild(card);
-  });
-}
-
-// Drag & drop highlight and handler
-const dropArea = document.getElementById('dropArea');
-dropArea.addEventListener('dragover', e => {
-  e.preventDefault(); dropArea.classList.add('dragover');
-});
-dropArea.addEventListener('dragleave', e => {
-  dropArea.classList.remove('dragover');
-});
-dropArea.addEventListener('drop', e => {
-  e.preventDefault(); dropArea.classList.remove('dragover');
-  if (e.dataTransfer.files.length > 0) {
-    fileInput.files = e.dataTransfer.files;
-    validateForm();
-  }
-});
-
-// Form controls
-const uploaderName = document.getElementById('uploaderName');
-const fileInput = document.getElementById('fileInput');
-const uploadBtn = document.getElementById('uploadBtn');
-const errorMsg = document.getElementById('errorMsg');
-const progressBar = document.getElementById('progressBar');
-
-function validateForm() {
-  errorMsg.textContent = '';
-  uploadBtn.disabled = !(fileInput.files.length > 0 && uploaderName.value.trim() !== '');
-}
-uploaderName.addEventListener('input', validateForm);
-fileInput.addEventListener('change', validateForm);
-
-uploadBtn.addEventListener('click', () => {
-  errorMsg.textContent = '';
-  const file = fileInput.files[0];
-  const name = uploaderName.value.trim();
-  if (!file || !name) return;
-  if (file.size > 10*1024*1024) {
-    errorMsg.textContent = 'File exceeds 10MB limit.';
-    return;
-  }
-  const allowed = ['pdf','epu','mp3','jpg'];
-  const ext = file.name.split('.').pop().toLowerCase();
-  if (!allowed.includes(ext)) {
-    errorMsg.textContent = 'File type not allowed.';
-    return;
-  }
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('uploader', name);
-  const xhr = new XMLHttpRequest();
-  xhr.open('POST', `${BACKEND_URL}/upload`, true);
-  xhr.upload.onprogress = e => {
-    if (e.lengthComputable) {
-      progressBar.style.width = (e.loaded/e.total*100)+'%';
+    // Validation
+    function validateForm() {
+      errorMsg.textContent = '';
+      uploadBtn.disabled = !(fileInput.files.length > 0 && uploaderName.value.trim() !== '');
     }
-  };
-  xhr.onload = () => {
-    progressBar.style.width = '0%';
-    if (xhr.status === 200) {
-      fetchFiles();
-      fileInput.value = '';
-      uploaderName.value = '';
-      uploadBtn.disabled = true;
-    } else {
-      errorMsg.textContent = JSON.parse(xhr.responseText).error || 'Upload failed';
-    }
-  };
-  xhr.onerror = () => {
-    progressBar.style.width = '0%';
-    errorMsg.textContent = 'Network upload error';
-  };
-  xhr.send(formData);
-});
+    uploaderName.addEventListener('input', validateForm);
+    fileInput.addEventListener('change', validateForm);
 
-fetchFiles();
+    // Upload
+    uploadBtn.addEventListener('click', () => {
+      errorMsg.textContent = '';
+      const file = fileInput.files[0];
+      const name = uploaderName.value.trim();
+      if (!file || !name) return;
+
+      // Size limit
+      if (file.size > 10 * 1024 * 1024) {
+        errorMsg.textContent = 'File exceeds 10MB limit.';
+        return;
+      }
+
+      // Allowed types
+      const allowed = ['pdf', 'epub', 'mp3', 'jpg'];
+      const ext = file.name.split('.').pop().toLowerCase();
+      if (!allowed.includes(ext)) {
+        errorMsg.textContent = 'File type not allowed.';
+        return;
+      }
+
+      // Upload request
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('uploader', name);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${BACKEND_URL}/upload`, true);
+
+      xhr.upload.onprogress = e => {
+        if (e.lengthComputable) {
+          progressBar.style.width = (e.loaded / e.total * 100) + '%';
+        }
+      };
+
+      xhr.onload = () => {
+        progressBar.style.width = '0%';
+        if (xhr.status === 200) {
+          fetchFiles();
+          fileInput.value = '';
+          uploaderName.value = '';
+          uploadBtn.disabled = true;
+        } else {
+          try {
+            const res = JSON.parse(xhr.responseText);
+            errorMsg.textContent = res.error || 'Upload failed';
+          } catch {
+            errorMsg.textContent = 'Upload failed';
+          }
+        }
+      };
+
+      xhr.onerror = () => {
+        progressBar.style.width = '0%';
+        errorMsg.textContent = 'Network upload error';
+      };
+
+      xhr.send(formData);
+    });
+
+    // Initial fetch
+    fetchFiles();
   </script>
 </body>
 </html>
+
